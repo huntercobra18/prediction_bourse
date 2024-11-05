@@ -1,7 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import socketIOClient from 'socket.io-client';
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
-import './App.css'; // Importer le fichier CSS
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  CartesianGrid,
+  ResponsiveContainer,
+} from 'recharts';
+import { Card, InputNumber, Typography } from 'antd';
+import './App.css';
+
+const { Title, Text } = Typography;
 
 const ENDPOINT = 'http://localhost:5001';
 
@@ -50,40 +62,49 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Données de Stock en Temps Réel</h1>
+      <Title level={1}>Données de Stock en Temps Réel</Title>
       {realtimeData.map((data) => (
-        <div key={data.symbol} className="stock-container">
-          <h2>
+        <Card key={data.symbol} className="stock-container">
+          <Title level={2}>
             {data.name} ({data.symbol})
-          </h2>
-          <p>Prix : {data.price}</p>
-          <p>Heure : {new Date(data.timestamp).toLocaleTimeString()}</p>
-          <label>
-            Définir une alerte à :
-            <input
-              type="number"
-              value={alerts[data.symbol] || ''}
-              onChange={(e) => handleAlertChange(data.symbol, e.target.value)}
-            />
-          </label>
-
-          {/* Afficher le graphique */}
+          </Title>
+          <Text strong>Prix :</Text> {parseFloat(data.price).toFixed(2)}
+          <br />
+          <Text strong>Heure :</Text> {new Date(data.timestamp).toLocaleTimeString()}
+          <div style={{ marginTop: '10px' }}>
+            <label>
+              Définir une alerte à :
+              <InputNumber
+                value={alerts[data.symbol] || ''}
+                onChange={(value) => handleAlertChange(data.symbol, value)}
+                style={{ marginLeft: '10px' }}
+              />
+            </label>
+          </div>
           {chartData[data.symbol] && (
-            <LineChart
-              width={600}
-              height={300}
-              data={chartData[data.symbol]}
-              margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-            >
-              <CartesianGrid stroke="#f5f5f5" />
-              <XAxis dataKey="timestamp" />
-              <YAxis domain={['auto', 'auto']} />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="price" stroke="#ff7300" yAxisId={0} />
-            </LineChart>
+            <div className="chart-container">
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart
+                  data={chartData[data.symbol]}
+                  margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                >
+                  <CartesianGrid stroke="#e0e0e0" />
+                  <XAxis dataKey="timestamp" />
+                  <YAxis domain={['auto', 'auto']} />
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="price"
+                    stroke="#1890ff"
+                    yAxisId={0}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           )}
-        </div>
+        </Card>
       ))}
     </div>
   );
