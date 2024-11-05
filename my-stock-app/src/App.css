@@ -1,0 +1,33 @@
+.App {
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+.stock-container {
+  border: 1px solid #ccc;
+  padding: 20px;
+  margin: 20px;
+}
+
+.stock-container h2 {
+  color: #333;
+}
+
+.stock-container p {
+  font-size: 18px;
+}
+
+label {
+  display: block;
+  margin-top: 10px;
+}
+
+input[type='number'] {
+  padding: 5px;
+  margin-left: 10px;
+  width: 100px;
+}
+
+LineChart {
+  margin-top: 20px;
+}
