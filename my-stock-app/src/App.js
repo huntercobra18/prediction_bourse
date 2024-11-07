@@ -10,13 +10,10 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from 'recharts';
-import { Card, InputNumber, Typography, Button } from 'antd';
+import { Card, Typography } from 'antd';
 import './App.css';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 
 const { Title, Text } = Typography;
-
 const ENDPOINT = 'http://localhost:5001';
 
 class App extends React.Component {
@@ -25,49 +22,51 @@ class App extends React.Component {
     this.state = {
       realtimeData: [],
       chartData: {},
-      alerts: {},
-      alertInputs: {}, // Ajouté pour stocker les valeurs d'entrée
+      indicators: {},
     };
-
     this.socket = null;
   }
 
   componentDidMount() {
     this.socket = socketIOClient(ENDPOINT);
-
     this.socket.on('FromAPI', (data) => {
       this.setState({ realtimeData: data });
-
-      // Mettre à jour les données du graphique
       data.forEach((item) => {
-        this.setState((prevState) => ({
-          chartData: {
-            ...prevState.chartData,
-            [item.symbol]: [
-              ...(prevState.chartData[item.symbol] || []),
-              {
-                timestamp: new Date(item.timestamp).toLocaleTimeString(),
-                price: parseFloat(item.price),
-              },
-            ],
-          },
-        }));
+        const price = parseFloat(item.price);
+        this.setState((prevState) => {
+          const symbolData = prevState.chartData[item.symbol] || [];
+          const updatedSymbolData = [
+            ...symbolData,
+            {
+              timestamp: new Date(item.timestamp).toLocaleTimeString(),
+              price,
+            },
+          ];
+          const prices = updatedSymbolData.map((d) => d.price);
+          const rsi = calculateRSI(prices);
+          const bollinger = calculateBollingerBands(prices);
+          const macd = calculateMACD(prices);
+          const regression = linearRegression(prices);
+          const sma = calculateSMA(prices, 14);
+          const indicators = {
+            ...prevState.indicators,
+            [item.symbol]: {
+              rsi: rsi[rsi.length - 1],
+              bollinger,
+              macd,
+              regression,
+              sma,
+            },
+          };
+          return {
+            chartData: {
+              ...prevState.chartData,
+              [item.symbol]: updatedSymbolData,
+            },
+            indicators,
+          };
+        });
       });
-
-      // Vérifier les alertes
-      data.forEach((item) => {
-        const alertPrice = this.state.alerts[item.symbol];
-        if (alertPrice && item.price >= alertPrice) {
-          // L'alerte sera désormais gérée par le backend via WebSocket
-        }
-      });
-    });
-
-    // Ajouter l'écouteur pour les alertes de prix
-    this.socket.on('PriceAlert', (alertData) => {
-      toast.success(
-        `Alerte! ${alertData.name} a atteint le prix de ${parseFloat(alertData.price).toFixed(2)}€`
-      );
     });
   }
 
@@ -77,112 +76,155 @@ class App extends React.Component {
     }
   }
 
-  handleAlertInputChange = (symbol, value) => {
-    this.setState((prevState) => ({
-      alertInputs: {
-        ...prevState.alertInputs,
-        [symbol]: value,
-      },
-    }));
-  };
-
-  handleAlertSubmit = (symbol) => {
-    const alertPrice = parseFloat(this.state.alertInputs[symbol]);
-
-    if (isNaN(alertPrice)) {
-      toast.error('Veuillez entrer un montant valide pour l\'alerte');
-      return;
-    }
-
-    // Envoyer l'alerte au backend
-    fetch('http://localhost:5001/api/alerts', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ symbol, price: alertPrice }),
-    })
-      .then((response) => {
-        if (response.ok) {
-          toast.info(`Alerte pour ${symbol} à ${alertPrice}€ créée avec succès`);
-          this.setState((prevState) => ({
-            alerts: {
-              ...prevState.alerts,
-              [symbol]: alertPrice,
-            },
-            alertInputs: {
-              ...prevState.alertInputs,
-              [symbol]: '', // Réinitialiser le champ d'entrée
-            },
-          }));
-        } else {
-          toast.error("Erreur lors de la création de l'alerte");
-        }
-      })
-      .catch(() => {
-        toast.error("Erreur lors de la création de l'alerte");
-      });
-  };
-
   render() {
-    const { realtimeData, chartData, alerts, alertInputs } = this.state;
-
+    const { realtimeData, chartData, indicators } = this.state;
     return (
       <div className="App">
-        <ToastContainer />
-        <Title level={1}>Données de Stock en Temps Réel</Title>
-        {realtimeData.map((data) => (
-          <Card key={data.symbol} className="stock-container">
-            <Title level={2}>
-              {data.name} ({data.symbol})
-            </Title>
-            <Text strong>Prix :</Text> {parseFloat(data.price).toFixed(2)}
-            <br />
-            <Text strong>Heure :</Text> {new Date(data.timestamp).toLocaleTimeString()}
-            <div style={{ marginTop: '10px' }}>
-              <label>
-                Définir une alerte à :
-                <InputNumber
-                  value={alertInputs[data.symbol] || ''}
-                  onChange={(value) => this.handleAlertInputChange(data.symbol, value)}
-                  style={{ marginLeft: '10px', marginRight: '10px' }}
-                />
-              </label>
-              <Button
-                type="primary"
-                onClick={() => this.handleAlertSubmit(data.symbol)}
-              >
-                Valider
-              </Button>
-            </div>
-            {chartData[data.symbol] && (
+        <Title level={1}>Données de Stock en Temps Réel avec Indicateurs Techniques</Title>
+        {realtimeData.map((data) => {
+          const symbolIndicators = indicators[data.symbol] || {};
+          const symbolChartData = chartData[data.symbol] || [];
+          const prices = symbolChartData.map((d) => d.price);
+          const timestamps = symbolChartData.map((d) => d.timestamp);
+          const bollingerData = symbolIndicators.bollinger || {};
+          const regressionData = symbolIndicators.regression || {};
+          const smaData = symbolIndicators.sma || [];
+          const macdData = symbolIndicators.macd || {};
+          const rsiValue = symbolIndicators.rsi || 0;
+          const chartDataWithIndicators = symbolChartData.map((d, i) => ({
+            ...d,
+            upperBand: bollingerData.upperBand ? bollingerData.upperBand[i - (bollingerData.upperBand.length - prices.length)] : null,
+            lowerBand: bollingerData.lowerBand ? bollingerData.lowerBand[i - (bollingerData.lowerBand.length - prices.length)] : null,
+            sma: smaData[i - (smaData.length - prices.length)] || null,
+            regression: regressionData.predictions ? regressionData.predictions[i - (regressionData.predictions.length - prices.length)] : null,
+          }));
+          return (
+            <Card key={data.symbol} className="stock-container">
+              <Title level={2}>
+                {data.name} ({data.symbol})
+              </Title>
+              <Text strong>Prix :</Text> {parseFloat(data.price).toFixed(2)}
+              <br />
+              <Text strong>Heure :</Text> {new Date(data.timestamp).toLocaleTimeString()}
+              <br />
+              <Text strong>RSI :</Text> {rsiValue ? rsiValue.toFixed(2) : 'Calcul en cours...'}
               <div className="chart-container">
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart
-                    data={chartData[data.symbol]}
-                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-                  >
+                  <LineChart data={chartDataWithIndicators}>
                     <CartesianGrid stroke="#e0e0e0" />
                     <XAxis dataKey="timestamp" />
                     <YAxis domain={['auto', 'auto']} />
                     <Tooltip />
                     <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="price"
-                      stroke="#1890ff"
-                      yAxisId={0}
-                      isAnimationActive={false}
-                    />
+                    <Line type="monotone" dataKey="price" stroke="#8884d8" yAxisId={0} isAnimationActive={false} dot={false} />
+                    <Line type="monotone" dataKey="upperBand" stroke="#82ca9d" yAxisId={0} isAnimationActive={false} dot={false} />
+                    <Line type="monotone" dataKey="lowerBand" stroke="#82ca9d" yAxisId={0} isAnimationActive={false} dot={false} />
+                    <Line type="monotone" dataKey="sma" stroke="#ffc658" yAxisId={0} isAnimationActive={false} dot={false} />
+                    <Line type="monotone" dataKey="regression" stroke="#ff7300" yAxisId={0} isAnimationActive={false} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-            )}
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
     );
   }
 }
 
 export default App;
+
+function calculateRSI(prices, period = 14) {
+  const gains = [];
+  const losses = [];
+  for (let i = 1; i < prices.length; i++) {
+    const difference = prices[i] - prices[i - 1];
+    if (difference >= 0) {
+      gains.push(difference);
+      losses.push(0);
+    } else {
+      gains.push(0);
+      losses.push(Math.abs(difference));
+    }
+  }
+  let averageGain = gains.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  let averageLoss = losses.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  const rsi = [];
+  let rs = averageGain / averageLoss;
+  rsi[period] = 100 - 100 / (1 + rs);
+  for (let i = period + 1; i < prices.length; i++) {
+    const gain = gains[i - 1];
+    const loss = losses[i - 1];
+    averageGain = (averageGain * (period - 1) + gain) / period;
+    averageLoss = (averageLoss * (period - 1) + loss) / period;
+    rs = averageGain / averageLoss;
+    rsi[i] = 100 - 100 / (1 + rs);
+  }
+  return rsi;
+}
+
+function calculateBollingerBands(prices, period = 20, k = 2) {
+  const sma = [];
+  const upperBand = [];
+  const lowerBand = [];
+  for (let i = period - 1; i < prices.length; i++) {
+    const window = prices.slice(i - period + 1, i + 1);
+    const mean = window.reduce((a, b) => a + b, 0) / period;
+    const variance = window.reduce((sum, price) => sum + Math.pow(price - mean, 2), 0) / period;
+    const sd = Math.sqrt(variance);
+    sma.push(mean);
+    upperBand.push(mean + k * sd);
+    lowerBand.push(mean - k * sd);
+  }
+  return { sma, upperBand, lowerBand };
+}
+
+function calculateEMA(prices, period) {
+  const k = 2 / (period + 1);
+  const emaArray = [];
+  let ema = prices[0];
+  emaArray.push(ema);
+  for (let i = 1; i < prices.length; i++) {
+    ema = prices[i] * k + ema * (1 - k);
+    emaArray.push(ema);
+  }
+  return emaArray;
+}
+
+function calculateMACD(prices, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
+  const emaFast = calculateEMA(prices, fastPeriod);
+  const emaSlow = calculateEMA(prices, slowPeriod);
+  const macdLine = emaFast.map((value, index) => value - emaSlow[index]);
+  const signalLine = calculateEMA(macdLine.slice(slowPeriod - 1), signalPeriod);
+  const histogram = macdLine.slice(slowPeriod - 1).map((value, index) => value - signalLine[index]);
+  return {
+    macdLine: macdLine.slice(slowPeriod - 1),
+    signalLine,
+    histogram,
+  };
+}
+
+function linearRegression(prices) {
+  const N = prices.length;
+  const x = [...Array(N).keys()];
+  const y = prices;
+  const sumX = x.reduce((a, b) => a + b, 0);
+  const sumY = y.reduce((a, b) => a + b, 0);
+  const sumXY = x.reduce((sum, xi, idx) => sum + xi * y[idx], 0);
+  const sumX2 = x.reduce((sum, xi) => sum + xi * xi, 0);
+  const numeratorA = N * sumXY - sumX * sumY;
+  const denominatorA = N * sumX2 - sumX * sumX;
+  const a = numeratorA / denominatorA;
+  const b = (sumY - a * sumX) / N;
+  const predictions = x.map((xi) => a * xi + b);
+  return { a, b, predictions };
+}
+
+function calculateSMA(prices, period) {
+  const sma = [];
+  for (let i = period - 1; i < prices.length; i++) {
+    const sum = prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+    sma.push(sum / period);
+  }
+  return sma;
+}

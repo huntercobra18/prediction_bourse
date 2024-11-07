@@ -24,17 +24,6 @@ const indices = [
 
 // Fonction pour initialiser le serveur
 function initializeServer(knexInstance) {
-    // Endpoints API REST pour les stocks
-    app.get('/api/stocks', (req, res) => {
-        res.json(stocks);
-    });
-
-    app.post('/api/stocks', (req, res) => {
-        const stock = req.body;
-        stocks.push(stock);
-        res.status(201).json(stock);
-    });
-
     // Endpoints API REST pour les alertes
     app.post('/api/alerts', (req, res) => {
         const { symbol, price } = req.body;
@@ -108,7 +97,7 @@ function initializeServer(knexInstance) {
         return data;
     }
 
-    // Initialisation de Socket.io
+    // Initialisation du serveur HTTP et de Socket.io
     const server = http.createServer(app);
     const io = socketIo(server, {
         cors: {
@@ -131,23 +120,23 @@ function initializeServer(knexInstance) {
         });
     });
 
-    // Démarrer le serveur
-    if (require.main === module) {
-        // Appliquer les migrations et démarrer le serveur uniquement si le fichier est exécuté directement
-        knexInstance.migrate
-            .latest()
-            .then(() => {
-                server.listen(5001, () => {
-                    console.log('Server is running on http://localhost:5001');
-                });
-            })
-            .catch((err) => {
-                console.error('Failed to start server:', err);
-            });
-    }
-
     return server;
 }
 
 // Exporter l'application Express et la fonction pour initialiser le serveur
 module.exports = { app, initializeServer };
+
+// Si le fichier est exécuté directement, appliquer les migrations et démarrer le serveur
+if (require.main === module) {
+    knex.migrate
+        .latest()
+        .then(() => {
+            const server = initializeServer(knex);
+            server.listen(5001, () => {
+                console.log('Server is running on http://localhost:5001');
+            });
+        })
+        .catch((err) => {
+            console.error('Failed to start server:', err);
+        });
+}
