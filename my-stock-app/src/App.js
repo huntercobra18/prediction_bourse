@@ -152,6 +152,20 @@ class App extends React.Component {
         this.setState({ isModalVisible: false, alertPrice: null });
     };
 
+    deleteAlert = (id) => {
+        fetch(`${ENDPOINT}/api/alerts/${id}`, {
+            method: 'DELETE',
+        })
+            .then(() => {
+                notification.info({
+                    message: 'Alerte Supprimée',
+                    description: `L'alerte a été supprimée`,
+                });
+                this.fetchAlerts();
+            })
+            .catch((err) => console.error('Error deleting alert:', err));
+    };
+
     render() {
         const { realtimeData, chartData, indicators, alerts, isModalVisible, selectedSymbol, alertPrice } = this.state;
         return (
@@ -192,7 +206,7 @@ class App extends React.Component {
                             <Title level={2}>
                                 {data.name} ({data.symbol})
                             </Title>
-                            <Text strong>Prix :</Text> {parseFloat(data.price).toFixed(2)}€
+                            <Text strong>Prix :</Text> {parseFloat(data.price).toFixed(4)}€
                             <br />
                             <Text strong>Heure :</Text> {new Date(data.timestamp).toLocaleTimeString()}
                             <br />
@@ -307,20 +321,6 @@ class App extends React.Component {
             </div>
         );
     }
-
-    deleteAlert = (id) => {
-        fetch(`${ENDPOINT}/api/alerts/${id}`, {
-            method: 'DELETE',
-        })
-            .then(() => {
-                notification.info({
-                    message: 'Alerte Supprimée',
-                    description: `L'alerte a été supprimée`,
-                });
-                this.fetchAlerts();
-            })
-            .catch((err) => console.error('Error deleting alert:', err));
-    };
 }
 
 export default App;
